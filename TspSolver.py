@@ -8,7 +8,7 @@ class TSPApp:
     def __init__(self, root):
         self.root = root
         self.root.title("TSP Solver")
-        self.canvas = tk.Canvas(root, width=800, height=600, bg="gray25")
+        self.canvas = tk.Canvas(root, width=800, height=600, bg="white")
         self.canvas.pack()
         self.canvas.bind("<Button-1>", self.add_point)
         self.canvas.bind("<B1-Motion>", self.drag_point)
@@ -25,8 +25,11 @@ class TSPApp:
         self.button_frame = tk.Frame(root)
         self.button_frame.pack()
 
-        self.solve_button = tk.Button(self.button_frame, text="Solve TSP", command=self.solve_tsp)
+        self.solve_button = tk.Button(self.button_frame, text="Solve TSP (GA)", command=self.solve_tsp)
         self.solve_button.pack(side=tk.LEFT)
+
+        self.solve_aco_button = tk.Button(self.button_frame, text="Solve TSP (ACO)", command=self.solve_tsp_aco)
+        self.solve_aco_button.pack(side=tk.LEFT)
 
         self.reset_button = tk.Button(self.button_frame, text="Reset", command=self.reset)
         self.reset_button.pack(side=tk.LEFT)
@@ -64,10 +67,20 @@ class TSPApp:
         self.mut_rate_entry.insert(0, "0.01")
         self.mut_rate_entry.pack(side=tk.LEFT)
 
+        self.aco_ant_count_label = tk.Label(self.param_frame, text="Ant Count:")
+        self.aco_ant_count_label.pack(side=tk.LEFT)
+        self.aco_ant_count_entry = tk.Entry(self.param_frame)
+        self.aco_ant_count_entry.insert(0, "50")
+        self.aco_ant_count_entry.pack(side=tk.LEFT)
+
+        self.aco_gen_num_label = tk.Label(self.param_frame, text="ACO Generations:")
+        self.aco_gen_num_label.pack(side=tk.LEFT)
+        self.aco_gen_num_entry = tk.Entry(self.param_frame)
+        self.aco_gen_num_entry.insert(0, "100")
+        self.aco_gen_num_entry.pack(side=tk.LEFT)
+
         self.fig, self.ax = plt.subplots()
         self.canvas_plot = FigureCanvasTkAgg(self.fig, master=root)
-        self.fig.set_facecolor("gray")
-        self.ax.set_facecolor("gray")
         self.canvas_plot.get_tk_widget().pack()
 
     def add_point(self, event):
@@ -75,14 +88,14 @@ class TSPApp:
         self.points.append((x, y))
         self.history.append((self.points[:], self.obstacles[:]))
         self.future = []
-        self.canvas.create_oval(x-3, y-3, x+3, y+3, fill="blue")
+        self.canvas.create_oval(x-3, y-3, x+3, y+3, fill="black")
 
     def drag_point(self, event):
         if self.points:
             self.points[-1] = (event.x, event.y)
             self.canvas.delete("point")
             for x, y in self.points:
-                self.canvas.create_oval(x-3, y-3, x+3, y+3, fill="blue", tags="point")
+                self.canvas.create_oval(x-3, y-3, x+3, y+3, fill="black", tags="point")
 
     def release_point(self, event):
         self.dragging_point = None
@@ -123,7 +136,7 @@ class TSPApp:
         self.points, self.obstacles = last_action
         self.canvas.delete("all")
         for x, y in self.points:
-            self.canvas.create_oval(x-3, y-3, x+3, y+3, fill="blue")
+            self.canvas.create_oval(x-3, y-3, x+3, y+3, fill="black")
         for x1, y1, x2, y2 in self.obstacles:
             self.canvas.create_rectangle(x1, y1, x2, y2, fill="red")
         self.distance_label.config(text="Total Distance: N/A")
@@ -136,7 +149,7 @@ class TSPApp:
         self.points, self.obstacles = next_action
         self.canvas.delete("all")
         for x, y in self.points:
-            self.canvas.create_oval(x-3, y-3, x+3, y+3, fill="blue")
+            self.canvas.create_oval(x-3, y-3, x+3, y+3, fill="black")
         for x1, y1, x2, y2 in self.obstacles:
             self.canvas.create_rectangle(x1, y1, x2, y2, fill="red")
         self.distance_label.config(text="Total Distance: N/A")
@@ -159,10 +172,10 @@ class TSPApp:
         for i in range(len(best_route) - 1):
             x1, y1 = cities[best_route[i]]
             x2, y2 = cities[best_route[i+1]]
-            self.canvas.create_line(x1, y1, x2, y2, fill="green", tags="route")
+            self.canvas.create_line(x1, y1, x2, y2, fill="gray", tags="route")
         x1, y1 = cities[best_route[-1]]
         x2, y2 = cities[best_route[0]]
-        self.canvas.create_line(x1, y1, x2, y2, fill="green", tags="route")
+        self.canvas.create_line(x1, y1, x2, y2, fill="gray", tags="route")
 
         self.distance_label.config(text=f"Total Distance: {best_distance:.2f}")
 
@@ -173,6 +186,49 @@ class TSPApp:
         self.ax.set_xlabel("Generation")
         self.ax.set_ylabel("Distance")
         self.canvas_plot.draw()
+
+    def solve_tsp_aco(self):
+        if len(self.points) < 2:
+            return
+
+        try:
+            num_ants = int(self.aco_ant_count_entry.get())
+            num_generations = int(self.aco_gen_num_entry.get())
+        except ValueError:
+            return
+
+        cities = np.array(self.points)
+        best_route, best_distance, fitness_history = ant_colony_optimization(cities, self.obstacles, self.canvas, self.distance_label, num_ants, num_generations)
+
+        self.canvas.delete("route")
+        for i in range(len(best_route) - 1):
+            x1, y1 = cities[best_route[i]]
+            x2, y2 = cities[best_route[i+1]]
+            self.canvas.create_line(x1, y1, x2, y2, fill="gray", tags="route")
+        x1, y1 = cities[best_route[-1]]
+        x2, y2 = cities[best_route[0]]
+        self.canvas.create_line(x1, y1, x2, y2, fill="gray", tags="route")
+
+        self.distance_label.config(text=f"Total Distance: {best_distance:.2f}")
+
+        # Plot fitness history
+        self.ax.clear()
+        self.ax.plot(fitness_history)
+        self.ax.set_title("Fitness over Generations")
+        self.ax.set_xlabel("Generation")
+        self.ax.set_ylabel("Distance")
+        self.canvas_plot.draw()
+        
+    def draw_route(self, route, cities, tag, color="blue"):
+        self.canvas.delete(tag)
+        for i in range(len(route) - 1):
+            x1, y1 = cities[route[i]]
+            x2, y2 = cities[route[i+1]]
+            self.canvas.create_line(x1, y1, x2, y2, fill=color, tags=tag)
+        x1, y1 = cities[route[-1]]
+        x2, y2 = cities[route[0]]
+        self.canvas.create_line(x1, y1, x2, y2, fill=color, tags=tag)
+
 
 def distance(city1, city2):
     return np.sqrt(np.sum((city1 - city2)**2))
@@ -278,9 +334,79 @@ def genetic_algorithm(cities, obstacles, canvas, distance_label, pop_size=100, n
 
     return best_route, best_distance, fitness_history
 
+# ACO Algorithm Functions
+def ant_colony_optimization(cities, obstacles, canvas, distance_label, num_ants=50, num_generations=100, alpha=1.0, beta=5.0, rho=0.5, Q=100):
+    num_cities = len(cities)
+    pheromone = np.ones((num_cities, num_cities))
+    best_route = None
+    best_distance = float('inf')
+    fitness_history = []
+
+    for generation in range(num_generations):
+        all_routes = []
+        all_distances = []
+
+        for ant in range(num_ants):
+            route = generate_route(cities, pheromone, alpha, beta, obstacles)
+            distance = fitness(route, cities, obstacles)
+            all_routes.append(route)
+            all_distances.append(distance)
+
+            if distance < best_distance:
+                best_distance = distance
+                best_route = route
+
+            # Visualize each ant's route
+            app.draw_route(route, cities, f"ant_route_{ant}", color="blue")
+
+        pheromone = (1 - rho) * pheromone
+        for route, distance in zip(all_routes, all_distances):
+            for i in range(num_cities - 1):
+                pheromone[route[i]][route[i+1]] += Q / distance
+            pheromone[route[-1]][route[0]] += Q / distance
+
+        fitness_history.append(best_distance)
+
+        # Visualize the best route
+        app.draw_route(best_route, cities, "best_route", color="red")
+
+        distance_label.config(text=f"ACO Generation: {generation+1}, Distance: {best_distance:.2f}")
+        canvas.update()
+        canvas.after(1)  # Short delay to visualize
+        
+    for generation in range(num_generations):
+        for ant in range(num_ants):
+            canvas.delete(f"ant_route_{ant}")
+
+    return best_route, best_distance, fitness_history
+
+
+
+def generate_route(cities, pheromone, alpha, beta, obstacles):
+    num_cities = len(cities)
+    route = []
+    unvisited = list(range(num_cities))
+    current_city = random.choice(unvisited)
+    route.append(current_city)
+    unvisited.remove(current_city)
+
+    while unvisited:
+        probabilities = []
+        for city in unvisited:
+            pheromone_value = pheromone[current_city][city] ** alpha
+            heuristic_value = (1 / distance(cities[current_city], cities[city])) ** beta
+            probabilities.append(pheromone_value * heuristic_value)
+        probabilities = np.array(probabilities) / sum(probabilities)
+        next_city = np.random.choice(unvisited, p=probabilities)
+        route.append(next_city)
+        unvisited.remove(next_city)
+        current_city = next_city
+
+    return route
+
+
 if __name__ == "__main__":
     root = tk.Tk()
-    root.tk.call("source", "Azure/azure.tcl")
-    root.tk.call("set_theme", "dark")
     app = TSPApp(root)
     root.mainloop()
+
